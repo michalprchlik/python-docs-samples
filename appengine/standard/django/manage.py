@@ -1,24 +1,18 @@
-#!/usr/bin/env python
-# Copyright 2015 Google Inc. All rights reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+env = environ.Env(DEBUG=(bool, False))
+env_file = os.path.join(BASE_DIR, ".env")
 
-import os
-import sys
+if os.path.isfile(env_file):
+     # Use a local secret file, if provided
+  env.read_env(env_file)
+            # ...
+elif os.environ.get("GOOGLE_CLOUD_PROJECT", None):
+         # Pull secrets from Secret Manager
+  project_id = os.environ.get("GOOGLE_CLOUD_PROJECT")
+  client = secretmanager.SecretManagerServiceClient()
+  settings_name = os.environ.get("SETTINGS_NAME", "django_settings")
+  name = f"projects/{project_id}/secrets/{settings_name}/versions/latest"
+  payload = client.access_secret_version(name=name).payload.data.decode("UTF-8")
 
-if __name__ == "__main__":
-    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "mysite.settings")
-
-    from django.core.management import execute_from_command_line
-
-    execute_from_command_line(sys.argv)
+  env.read_env(io.StringIO(payload))
+else:
+  raise Exception("No local .env or GOOGLE_CLOUD_PROJECT detected. No secrets found.")
